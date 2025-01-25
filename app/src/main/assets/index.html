@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>WebView Test</title>
+        <script>
+            function sendMessage() {
+                console.log("Pulsante cliccato");
+                try {
+                    Android.showToast("Messaggio ricevuto da JavaScript!");
+                } catch (e) {
+                    console.error("Errore durante l'interazione con Android: ", e);
+                }
+            }
+        </script>
+    </head>
+    <body>
+        <h1>Benvenuto in WebView</h1>
+        <button onclick="sendMessage()">Invia messaggio</button>
+    </body>
+</html>
