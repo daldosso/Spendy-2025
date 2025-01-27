@@ -2,12 +2,17 @@ package com.adaldosso.spendy
 
 import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
 import android.os.Bundle
 import android.provider.MediaStore
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.widget.Toast
+import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -16,7 +21,12 @@ import androidx.core.content.ContextCompat
 class WebViewActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
+    private lateinit var locationManager: LocationManager
+    private lateinit var cameraLauncher: ActivityResultLauncher<Intent>
+
     private var capturedImage: Bitmap? = null
+    private var latitude: Double = 0.0
+    private var longitude: Double = 0.0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -26,13 +36,31 @@ class WebViewActivity : AppCompatActivity() {
         webView.settings.javaScriptEnabled = true
         webView.addJavascriptInterface(WebAppInterface(), "Android")
 
-        // Carica la tua applicazione web
-        webView.loadUrl("http://10.0.2.2:4200/")
+        locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
+
+        // Inizializza il launcher della fotocamera
+        cameraLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == RESULT_OK) {
+                val data = result.data
+                capturedImage = data?.extras?.get("data") as Bitmap
+                Toast.makeText(this, "Immagine catturata con successo", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Impossibile catturare l'immagine", Toast.LENGTH_SHORT).show()
+            }
+        }
 
         // Controlla i permessi
         if (!isCameraPermissionGranted()) {
             requestCameraPermission()
         }
+        if (!isLocationPermissionGranted()) {
+            requestLocationPermission()
+        } else {
+            getLocation()
+        }
+
+        // Carica la tua applicazione web
+        webView.loadUrl("http://10.0.2.2:4200/")
     }
 
     // Controlla se il permesso della fotocamera è già stato concesso
@@ -40,7 +68,15 @@ class WebViewActivity : AppCompatActivity() {
         return ContextCompat.checkSelfPermission(
             this,
             Manifest.permission.CAMERA
-        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    // Controlla se il permesso della posizione è già stato concesso
+    private fun isLocationPermissionGranted(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
     }
 
     // Richiede il permesso della fotocamera
@@ -52,30 +88,53 @@ class WebViewActivity : AppCompatActivity() {
         )
     }
 
-    // Gestione della risposta ai permessi
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == CAMERA_PERMISSION_REQUEST) {
-            if (grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this, "Permesso fotocamera concesso", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(this, "Permesso fotocamera negato", Toast.LENGTH_SHORT).show()
-            }
+    // Richiede il permesso della posizione
+    private fun requestLocationPermission() {
+        ActivityCompat.requestPermissions(
+            this,
+            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+            LOCATION_PERMISSION_REQUEST
+        )
+    }
+
+    // Ottieni le coordinate GPS
+    private fun getLocation() {
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            locationManager.requestLocationUpdates(
+                LocationManager.GPS_PROVIDER,
+                1000L,
+                1f,
+                object : LocationListener {
+                    override fun onLocationChanged(location: Location) {
+                        latitude = location.latitude
+                        longitude = location.longitude
+                        Toast.makeText(
+                            this@WebViewActivity,
+                            "Posizione aggiornata: $latitude, $longitude",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+
+                    override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+                    override fun onProviderEnabled(provider: String) {}
+                    override fun onProviderDisabled(provider: String) {}
+                }
+            )
         }
     }
 
-    // Interfaccia JavaScript per l'accesso alla fotocamera
+    // Interfaccia JavaScript per il GPS e la fotocamera
     inner class WebAppInterface {
 
         @JavascriptInterface
         fun openCamera() {
             val cameraIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
             try {
-                startActivityForResult(cameraIntent, CAMERA_REQUEST_CODE)
+                cameraLauncher.launch(cameraIntent)
             } catch (e: Exception) {
                 runOnUiThread {
                     Toast.makeText(
@@ -85,6 +144,11 @@ class WebViewActivity : AppCompatActivity() {
                     ).show()
                 }
             }
+        }
+
+        @JavascriptInterface
+        fun getCoordinates(): String {
+            return "$latitude,$longitude"
         }
 
         @JavascriptInterface
@@ -99,19 +163,8 @@ class WebViewActivity : AppCompatActivity() {
         }
     }
 
-    // Gestione del risultato della fotocamera
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == CAMERA_REQUEST_CODE && resultCode == RESULT_OK) {
-            capturedImage = data?.extras?.get("data") as Bitmap
-            Toast.makeText(this, "Immagine catturata con successo", Toast.LENGTH_SHORT).show()
-        } else {
-            Toast.makeText(this, "Impossibile catturare l'immagine", Toast.LENGTH_SHORT).show()
-        }
-    }
-
     companion object {
-        private const val CAMERA_REQUEST_CODE = 100
         private const val CAMERA_PERMISSION_REQUEST = 101
+        private const val LOCATION_PERMISSION_REQUEST = 102
     }
 }
