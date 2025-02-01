@@ -7,6 +7,7 @@ import android.graphics.Bitmap
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
+import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.webkit.JavascriptInterface
@@ -17,6 +18,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.google.firebase.messaging.FirebaseMessaging
 
 class WebViewActivity : AppCompatActivity() {
 
@@ -27,6 +29,8 @@ class WebViewActivity : AppCompatActivity() {
     private var capturedImage: Bitmap? = null
     private var latitude: Double = 0.0
     private var longitude: Double = 0.0
+
+    private lateinit var requestPermissionLauncher: ActivityResultLauncher<String>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -57,6 +61,30 @@ class WebViewActivity : AppCompatActivity() {
             requestLocationPermission()
         } else {
             getLocation()
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+                if (isGranted) {
+                    println("✅ Permesso POST_NOTIFICATIONS concesso!")
+                } else {
+                    println("❌ Permesso POST_NOTIFICATIONS negato dall'utente.")
+                }
+            }
+
+            // Controlla se il permesso è già stato concesso
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+
+        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+            if (!task.isSuccessful) {
+                println("Errore nel recupero del token FCM")
+                return@addOnCompleteListener
+            }
+            val token = task.result
+            println("FCM Token: $token")
         }
 
         // Carica la tua applicazione web
