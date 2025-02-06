@@ -12,12 +12,14 @@ import android.os.Bundle
 import android.provider.MediaStore
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
+import android.widget.Button
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.adaldosso.spendy.R.id.button_home
 import com.google.firebase.messaging.FirebaseMessaging
 
 class WebViewActivity : AppCompatActivity() {
@@ -40,13 +42,23 @@ class WebViewActivity : AppCompatActivity() {
         initializeCameraLauncher()
         checkAndRequestPermissions()
         initializeFirebaseMessaging()
+
+        val homeButton = findViewById<Button>(/* id = */ button_home)
+        homeButton.setOnClickListener {
+            val intent = Intent(this, MainActivity::class.java)
+            startActivity(intent)
+            finish()
+        }
     }
 
     private fun initializeWebView() {
         webView = findViewById<WebView>(R.id.webView).apply {
             settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true
+
             addJavascriptInterface(WebAppInterface(), "Android")
-            loadUrl("http://10.0.2.2:4200/")
+            val webviewUrl = getString(R.string.webview_url)
+            loadUrl(webviewUrl)
         }
     }
 
